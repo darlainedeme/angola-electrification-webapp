@@ -1,0 +1,83 @@
+{
+ "S53": [
+  {
+   "row": "Densification (existing-grid expansion)",
+   "connections": 786337,
+   "cost_usd_M": 1130.0
+  },
+  {
+   "row": "Extension (new MV/LV grid)",
+   "connections": 370,
+   "cost_usd_M": 0.5
+  },
+  {
+   "row": "SHS",
+   "connections": 1479,
+   "cost_usd_M": 0.4
+  },
+  {
+   "row": "Programme overhead (staged delivery)",
+   "connections": 0,
+   "cost_usd_M": 0
+  },
+  {
+   "row": "TOTAL",
+   "connections": 788187,
+   "cost_usd_M": 1130.9
+  }
+ ],
+ "S60": [
+  {
+   "row": "Densification (existing-grid expansion)",
+   "connections": 786337,
+   "cost_usd_M": 1130.0
+  },
+  {
+   "row": "Extension (new MV/LV grid)",
+   "connections": 122701,
+   "cost_usd_M": 176.3
+  },
+  {
+   "row": "SHS",
+   "connections": 522334,
+   "cost_usd_M": 147.3
+  },
+  {
+   "row": "Programme overhead (staged delivery)",
+   "connections": 0,
+   "cost_usd_M": 330.0
+  },
+  {
+   "row": "TOTAL",
+   "connections": 1431373,
+   "cost_usd_M": 1783.6
+  }
+ ],
+ "S70": [
+  {
+   "row": "Densification (existing-grid expansion)",
+   "connections": 786337,
+   "cost_usd_M": 1130.0
+  },
+  {
+   "row": "Extension (new MV/LV grid)",
+   "connections": 199421,
+   "cost_usd_M": 286.6
+  },
+  {
+   "row": "SHS",
+   "connections": 1325876,
+   "cost_usd_M": 373.9
+  },
+  {
+   "row": "Programme overhead (staged delivery)",
+   "connections": 0,
+   "cost_usd_M": 330.0
+  },
+  {
+   "row": "TOTAL",
+   "connections": 2311635,
+   "cost_usd_M": 2120.4
+  }
+ ]
+}

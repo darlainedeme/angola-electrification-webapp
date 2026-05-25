@@ -1,157 +1,191 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Angola Electrification — Compact Response</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
-<link rel="stylesheet" href="css/style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Angola Electrification 2030: Compact response (v4)</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
-<header class="topbar">
-  <div class="brand">
-    <div class="brand-title">Angola Electrification</div>
-    <div class="brand-sub">World Bank / IFC response to MINEA Energy Compact, April 2026</div>
+<div id="topbar">
+  <div class="title">
+    <strong>Angola Electrification 2030</strong>
+    <span class="subtitle">Compact response — 53% / 60% / 70% access scenarios</span>
   </div>
-  <div class="scenario-toggle" role="tablist" aria-label="Access target scenario">
-    <button data-sc="S53" role="tab" aria-selected="false">53%</button>
+  <nav class="page-tabs">
+    <button class="page-tab active" data-page="overview">Overview map</button>
+    <button class="page-tab" data-page="province">Province focus</button>
+    <button class="page-tab" data-page="critique">Compact critique</button>
+  </nav>
+  <div class="scenario-switch" role="tablist" aria-label="Access target scenario">
+    <span class="switch-label">Scenario</span>
+    <button data-sc="S53" role="tab">53%</button>
     <button data-sc="S60" class="active" role="tab" aria-selected="true">60%</button>
-    <button data-sc="S70" role="tab" aria-selected="false">70%</button>
+    <button data-sc="S70" role="tab">70%</button>
   </div>
-</header>
+  <div class="topbar-controls">
+    <label class="basemap-toggle">
+      Basemap
+      <select id="basemap-select">
+        <option value="osm">OpenStreetMap</option>
+        <option value="satellite">Satellite</option>
+      </select>
+    </label>
+  </div>
+</div>
 
-<nav class="tabs" role="tablist">
-  <button data-view="overview" class="active">Overview</button>
-  <button data-view="map">Provincial map</button>
-  <button data-view="modality">Modality breakdown</button>
-  <button data-view="staged">Staged delivery</button>
-  <button data-view="critique">Compact response</button>
-</nav>
+<!-- ============= OVERVIEW PAGE ============= -->
+<div id="page-overview" class="page active">
+  <aside id="sidebar" class="open">
+    <button id="sidebar-toggle" class="sidebar-toggle" title="Toggle sidebar">&laquo;</button>
+    <div class="sidebar-inner">
+      <h2>The plan in five numbers</h2>
+      <div id="headline-cards" class="cards"></div>
 
-<main>
-  <!-- OVERVIEW -->
-  <section id="view-overview" class="view active">
-    <div class="cards">
-      <div class="card" data-sc-card="S53">
-        <div class="card-pct">53%</div>
-        <div class="card-label">Compact target</div>
-        <div class="card-stat"><strong id="ov53-total"></strong> total</div>
-        <div class="card-stat"><span id="ov53-conn"></span> new connections</div>
-        <div class="card-stat"><span id="ov53-grid"></span> grid share</div>
-        <div class="card-stat card-stat-muted"><span id="ov53-shs"></span> SHS share</div>
+      <h2>Cost stack</h2>
+      <div id="cost-stack"></div>
+
+      <h2>Show on map</h2>
+      <div class="layer-toggles">
+        <label><input type="checkbox" class="cat-toggle" data-cat="densification" checked> Densification (baseline grid)</label>
+        <label><input type="checkbox" class="cat-toggle" data-cat="extension" checked> Extension (new grid)</label>
+        <label><input type="checkbox" class="cat-toggle" data-cat="shs" checked> SHS</label>
+        <label><input type="checkbox" class="cat-toggle" data-cat="remaining"> Remaining (grey)</label>
+        <hr>
+        <label><input type="checkbox" id="lyr-grid" checked> Existing HV grid</label>
+        <label><input type="checkbox" id="lyr-admin" checked> Province boundaries</label>
       </div>
-      <div class="card highlight" data-sc-card="S60">
-        <div class="card-pct">60%</div>
-        <div class="card-label">Minimum credible floor</div>
-        <div class="card-stat"><strong id="ov60-total"></strong> total</div>
-        <div class="card-stat"><span id="ov60-conn"></span> new connections</div>
-        <div class="card-stat"><span id="ov60-grid"></span> grid share</div>
-        <div class="card-stat card-stat-muted"><span id="ov60-shs"></span> SHS share</div>
-      </div>
-      <div class="card highlight" data-sc-card="S70">
-        <div class="card-pct">70%</div>
-        <div class="card-label">Upside under staged approach</div>
-        <div class="card-stat"><strong id="ov70-total"></strong> total</div>
-        <div class="card-stat"><span id="ov70-conn"></span> new connections</div>
-        <div class="card-stat"><span id="ov70-grid"></span> grid share</div>
-        <div class="card-stat card-stat-muted"><span id="ov70-shs"></span> SHS share</div>
-      </div>
+
+      <h2>About this plan</h2>
+      <p class="help-text">
+        Three side-by-side scenarios: 53% (Compact target, do-minimum), 60% (minimum
+        credible floor given the Secretary of State's signal), and 70% (upside under
+        a staged delivery approach). Baseline calibrated to 51% access in 2025
+        (WB-reconciled value; Compact's literal 45% is challenged in the critique).
+      </p>
+      <p class="help-text">
+        Densification = pop growth in already-electrified baseline clusters
+        ($1,437/conn blended ENDE LOTES rate). Extension = newly served grid clusters
+        ($1,437/conn). SHS = off-grid clusters that would have been mini-grid in OnSSET,
+        reclassified to SHS per the no-MG rule ($282/conn). Source: OnSSET/GEP V.3
+        Scenario C, file ao-3-1_1_0_0_1_1.csv.
+      </p>
     </div>
+  </aside>
 
-    <div class="compare-box">
-      <h2>Compact comparison</h2>
-      <p>The MINEA Compact claims <strong>$4.6B</strong> for 1.7M connections to reach 53% access.
-      This analysis finds reaching 70% requires <strong id="cmp-70-total"></strong> across 2.31M connections.
-      The gap reflects a unit-cost reconciliation: Compact's implied $2,700 per connection vs the
-      $1,437 blended ENDE LOTES rate (after 11% standard add-ons), plus modality transparency.</p>
+  <main id="map"></main>
 
-      <table class="comparison">
-        <thead>
-          <tr><th>Quantity</th><th>Compact (53%)</th><th>Our 53%</th><th>Our 60%</th><th>Our 70%</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>Total cost</td><td>$4.6B</td><td id="t-53-cost"></td><td id="t-60-cost"></td><td id="t-70-cost"></td></tr>
-          <tr><td>New connections</td><td>1.7M</td><td id="t-53-conn"></td><td id="t-60-conn"></td><td id="t-70-conn"></td></tr>
-          <tr><td>$ per connection (avg)</td><td>~$2,700</td><td id="t-53-cpc"></td><td id="t-60-cpc"></td><td id="t-70-cpc"></td></tr>
-          <tr><td>Grid share (connections)</td><td>not stated</td><td id="t-53-gs"></td><td id="t-60-gs"></td><td id="t-70-gs"></td></tr>
-        </tbody>
-      </table>
+  <section id="bottom-panel" class="open">
+    <button id="bottom-toggle" class="bottom-toggle" title="Toggle bottom panel">&#x25BC;</button>
+    <div class="bottom-inner">
+      <div class="bottom-tabs">
+        <button data-tab="by-source" class="active">Cost by category</button>
+        <button data-tab="by-province">Per-province table</button>
+        <button data-tab="compare">Scenario comparison</button>
+      </div>
+      <div class="tab-pane" data-pane="by-source">
+        <table id="cost-table">
+          <thead><tr>
+            <th>Category</th><th>Connections</th><th>Cost (USD M)</th><th>$/conn</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="tab-pane hidden" data-pane="by-province">
+        <table id="province-table">
+          <thead><tr>
+            <th data-sort="Admin1_n">Province</th>
+            <th data-sort="in_plan_clusters">Clusters in plan</th>
+            <th data-sort="plan_conns">Connections</th>
+            <th data-sort="plan_cost">Cost (USD M)</th>
+            <th data-sort="densif_cost">Densification</th>
+            <th data-sort="extension_cost">Extension</th>
+            <th data-sort="shs_cost">SHS</th>
+            <th data-sort="access_2030_pct">Access 2030 %</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="tab-pane hidden" data-pane="compare">
+        <table id="compare-table">
+          <thead><tr>
+            <th>Quantity</th>
+            <th>Compact stated</th>
+            <th>Our 53%</th>
+            <th>Our 60%</th>
+            <th>Our 70%</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
   </section>
+</div>
 
-  <!-- MAP -->
-  <section id="view-map" class="view">
-    <div class="map-controls">
-      <label>
-        <input type="radio" name="map-mode" value="cost" checked>
-        Color by total cost
-      </label>
-      <label>
-        <input type="radio" name="map-mode" value="grid_share">
-        Color by grid share (%)
-      </label>
-      <label class="ml-auto">
-        <input type="checkbox" id="show-clusters">
-        Show cluster points (newly selected only)
-      </label>
-    </div>
-    <div id="map"></div>
-    <div id="prov-drawer" class="prov-drawer hidden">
-      <button class="close-btn" aria-label="Close">×</button>
-      <h3 id="drawer-title"></h3>
-      <table id="drawer-table"></table>
-    </div>
-  </section>
+<!-- ============= PROVINCE FOCUS PAGE ============= -->
+<div id="page-province" class="page">
+  <aside id="province-sidebar" class="open">
+    <button id="province-sidebar-toggle" class="sidebar-toggle" title="Toggle sidebar">&laquo;</button>
+    <div class="sidebar-inner">
+      <h2>Province</h2>
+      <select id="province-select"></select>
 
-  <!-- MODALITY -->
-  <section id="view-modality" class="view">
-    <h2>Modality breakdown</h2>
-    <p>Grid blended ENDE LOTES rate ($1,437 per connection) vs SHS Tier 1 mid ($282 per connection).
-    Mini-grid clusters are reclassified to SHS per the plan's no-MG rule.</p>
-    <div class="chart-grid">
-      <div>
-        <h3>Connections (M households)</h3>
-        <canvas id="chart-conn"></canvas>
-      </div>
-      <div>
-        <h3>Cost (USD M)</h3>
-        <canvas id="chart-cost"></canvas>
+      <h2>Summary</h2>
+      <div id="province-cards" class="cards"></div>
+
+      <h2>Cluster breakdown</h2>
+      <div id="province-breakdown" class="cards small"></div>
+
+      <h2>Cost breakdown</h2>
+      <div id="province-cost-stack"></div>
+
+      <h2>Show on map</h2>
+      <div class="layer-toggles">
+        <label><input type="checkbox" class="pcat-toggle" data-cat="densification" checked> Densification</label>
+        <label><input type="checkbox" class="pcat-toggle" data-cat="extension" checked> Extension</label>
+        <label><input type="checkbox" class="pcat-toggle" data-cat="shs" checked> SHS</label>
+        <label><input type="checkbox" class="pcat-toggle" data-cat="remaining"> Remaining (grey)</label>
       </div>
     </div>
-    <table class="modality-table">
+  </aside>
+
+  <main id="province-map"></main>
+</div>
+
+<!-- ============= COMPACT CRITIQUE PAGE ============= -->
+<div id="page-critique" class="page">
+  <div class="critique-container">
+    <h1>Compact response: reconciled critique</h1>
+    <p class="help-text">
+      Direct response to each weakness in the MINEA Energy Compact (April 2026
+      revision). Operational baseline uses the WB-reconciled 51% access rate;
+      the Compact's literal 45% is challenged in the first row.
+    </p>
+    <table id="critique-table">
       <thead>
-        <tr><th>Scenario</th><th>Modality</th><th>Unit cost</th><th>Connections</th><th>Total cost</th></tr>
+        <tr>
+          <th>Weakness</th>
+          <th>Compact value</th>
+          <th>Reconciled value</th>
+          <th>Source basis</th>
+        </tr>
       </thead>
-      <tbody id="mod-tbody"></tbody>
+      <tbody></tbody>
     </table>
-  </section>
+  </div>
+</div>
 
-  <!-- STAGED -->
-  <section id="view-staged" class="view">
-    <h2>Staged delivery program (60% and 70% only)</h2>
-    <p>Four parallel tracks layered on top of infrastructure costs. Midpoints used in headline numbers;
-    full range shown below. These are order-of-magnitude planning ranges, not engineered estimates.</p>
-    <div id="staged-timeline"></div>
-  </section>
+<div id="loading-overlay">
+  <div class="loader"><div class="spinner"></div><div id="loading-msg">Loading…</div></div>
+</div>
 
-  <!-- CRITIQUE -->
-  <section id="view-critique" class="view">
-    <h2>Compact response: reconciled critique</h2>
-    <p>Direct response to each weakness in the April 2026 Compact revision.</p>
-    <table class="critique-table" id="critique-table"></table>
-  </section>
-</main>
-
-<footer class="footbar">
+<footer id="footbar">
   <span>Data version <span id="footer-data-version"></span> · build <span id="footer-build-date"></span> · run <span id="footer-timestamp"></span></span>
   <span>Source: OnSSET / GEP V.3 Scenario C (<span id="footer-src"></span>)</span>
 </footer>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
