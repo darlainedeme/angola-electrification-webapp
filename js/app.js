@@ -2,17 +2,19 @@
 // Adapted from the original v3 webapp. Adds a scenario toggle (S53/S60/S70)
 // that swaps cluster GeoJSON, re-renders headline cards, cost stack and tables.
 
+const BUILD_TAG = "v4.1-2026-05-25d";
+
 const COLORS = {
-  densification:  "#1f3a8a",  // navy
-  extension:      "#60a5fa",  // light blue
-  shs:            "#fde047",  // yellow
-  remaining:      "#cbd5e1",  // grey
+  densification: "#1f3a8a",
+  extension:     "#60a5fa",
+  shs:           "#fde047",
+  remaining:     "#cbd5e1"
 };
 const LABELS = {
   densification: "Densification",
-  extension: "Extension",
-  shs: "SHS",
-  remaining: "Remaining",
+  extension:     "Extension",
+  shs:           "SHS",
+  remaining:     "Remaining"
 };
 const SCENARIOS = ["S53", "S60", "S70"];
 
@@ -24,127 +26,151 @@ const state = {
   pCatVisible: { densification: true, extension: true, shs: true, remaining: false },
   showGrid: true,
   showAdmin: true,
-  // Data
-  clusters: {},        // {S53: gj, S60: gj, S70: gj} loaded lazily
-  provincesAll: null,  // full list across scenarios
-  costStackAll: null,  // {S53: rows, S60: rows, S70: rows}
+  clusters: {},
+  provincesAll: null,
+  costStackAll: null,
   summary: null,
   meta: null,
   critique: null,
   adminGeoJSON: null,
   gridGeoJSON: null,
-  // Map state
   map: null, clusterLayer: null, gridLayer: null, adminLayer: null,
   selectedProvince: "Luanda",
   pMap: null, pClusterLayer: null, pAdminLayer: null,
-  provinceSort: { key: "plan_cost", dir: -1 },
+  provinceSort: { key: "plan_cost", dir: -1 }
 };
 
-const $ = (s) => document.querySelector(s);
-const $$ = (s) => Array.from(document.querySelectorAll(s));
+function qsel(s)  { return document.querySelector(s); }
+function qsela(s) { return Array.prototype.slice.call(document.querySelectorAll(s)); }
 
-function fmtMoney(n, digits = 2) {
-  if (n == null || isNaN(n)) return "–";
-  const a = Math.abs(n);
+function fmtMoney(n, digits) {
+  if (digits == null) digits = 2;
+  if (n == null || isNaN(n)) return "-";
+  var a = Math.abs(n);
   if (a >= 1e9) return "$" + (n / 1e9).toFixed(digits) + "B";
   if (a >= 1e6) return "$" + (n / 1e6).toFixed(1) + "M";
   if (a >= 1e3) return "$" + (n / 1e3).toFixed(0) + "K";
   return "$" + Math.round(n);
 }
-function fmtNumber(n, digits = 0) {
-  if (n == null || isNaN(n)) return "–";
-  const a = Math.abs(n);
+function fmtNumber(n) {
+  if (n == null || isNaN(n)) return "-";
+  var a = Math.abs(n);
   if (a >= 1e6) return (n / 1e6).toFixed(1) + "M";
   if (a >= 1e3) return (n / 1e3).toFixed(0) + "K";
   return Math.round(n).toLocaleString();
 }
-function fmtPct(n, digits = 1) {
-  if (n == null || isNaN(n)) return "–";
+function fmtPct(n, digits) {
+  if (digits == null) digits = 1;
+  if (n == null || isNaN(n)) return "-";
   return Number(n).toFixed(digits) + "%";
 }
+
 function setLoading(msg) {
-  const el = $("#loading-overlay");
+  var el = document.getElementById("loading-overlay");
   if (!msg) { el.classList.add("hidden"); return; }
-  $("#loading-msg").textContent = msg;
+  document.getElementById("loading-msg").textContent = msg;
   el.classList.remove("hidden");
 }
-async function loadJSON(path) {
-  const r = await fetch(path);
-  if (!r.ok) throw new Error(`Failed: ${path} (${r.status})`);
-  return r.json();
+function showError(msg) {
+  var el = document.getElementById("loading-overlay");
+  el.classList.remove("hidden");
+  document.getElementById("loading-msg").innerHTML =
+    '<div style="max-width:560px;color:#dc2626;font-weight:600;">ERROR</div>' +
+    '<div style="max-width:560px;margin-top:6px;font-size:12px;color:#475569;">' + msg + '</div>' +
+    '<div style="max-width:560px;margin-top:12px;font-size:11px;color:#94a3b8;">Build ' + BUILD_TAG + '. Open DevTools console for stack trace.</div>';
 }
 
-// =================== BASEMAPS ===================
-const osmA = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "&copy; OSM" });
-const satA = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 18, attribution: "&copy; Esri" });
-const osmP = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "&copy; OSM" });
-const satP = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 18, attribution: "&copy; Esri" });
+async function loadStep(label, path) {
+  setLoading(BUILD_TAG + " | " + label + "...");
+  var r = await fetch(path, { cache: "no-cache" });
+  if (!r.ok) throw new Error("HTTP " + r.status + " on " + path);
+  var text = await r.text();
+  if (!text || text.trim() === "") throw new Error("empty body from " + path);
+  if (text.indexOf("version https://git-lfs.github.com") === 0) {
+    throw new Error(path + " is a Git LFS pointer, not the actual file. Disable LFS for .geojson/.json or run: git lfs push --all origin main");
+  }
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    throw new Error("invalid JSON in " + path + ": " + e.message);
+  }
+}
+
+var osmA = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "&copy; OSM" });
+var satA = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 18, attribution: "&copy; Esri" });
+var osmP = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "&copy; OSM" });
+var satP = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 18, attribution: "&copy; Esri" });
 
 function setBasemap(kind) {
-  const m = state.page === "province" ? state.pMap : state.map;
+  var m = state.page === "province" ? state.pMap : state.map;
   if (!m) return;
-  const useOsm = kind === "osm";
-  const o = m === state.map ? osmA : osmP;
-  const s = m === state.map ? satA : satP;
+  var useOsm = kind === "osm";
+  var o = m === state.map ? osmA : osmP;
+  var s = m === state.map ? satA : satP;
   if (useOsm) { if (m.hasLayer(s)) m.removeLayer(s); if (!m.hasLayer(o)) o.addTo(m); }
   else        { if (m.hasLayer(o)) m.removeLayer(o); if (!m.hasLayer(s)) s.addTo(m); }
   state.basemap = kind;
 }
 
-// =================== OVERVIEW MAP ===================
 function initOverviewMap() {
   state.map = L.map("map", { preferCanvas: true, renderer: L.canvas() }).setView([-12.5, 17.5], 6);
   osmA.addTo(state.map);
 }
 
+function clusterRadius(lbl) {
+  if (lbl === "extension") return 4.5;
+  if (lbl === "densification") return 3.5;
+  if (lbl === "remaining") return 1.5;
+  return 2.5;
+}
+
 function buildClusterLayer() {
   if (state.clusterLayer) state.map.removeLayer(state.clusterLayer);
-  const gj = state.clusters[state.scenario];
+  var gj = state.clusters[state.scenario];
   if (!gj) return;
-  // Order: remaining first (background), then shs, then extension, then densification on top
-  const order = ["remaining", "shs", "extension", "densification"];
-  const feats = gj.features.slice().sort((a, b) =>
-    order.indexOf(a.properties.lbl) - order.indexOf(b.properties.lbl));
+  var order = ["remaining", "shs", "extension", "densification"];
+  var feats = gj.features.slice().sort(function (a, b) {
+    return order.indexOf(a.properties.lbl) - order.indexOf(b.properties.lbl);
+  });
   state.clusterLayer = L.geoJSON({ type: "FeatureCollection", features: feats }, {
-    pointToLayer: (f, latlng) => L.circleMarker(latlng, {
-      radius: clusterRadius(f.properties.lbl),
-      fillColor: COLORS[f.properties.lbl] || "#999",
-      color: COLORS[f.properties.lbl] || "#999",
-      weight: 0,
-      fillOpacity: f.properties.lbl === "remaining" ? 0.4 : 0.85,
-      stroke: false,
-    }),
-    onEachFeature: (f, layer) => {
-      const p = f.properties;
-      layer.on("click", () => {
-        layer.bindPopup(`
-          <div class="cluster-popup">
-            <div class="row"><span class="k">Cluster id</span><span class="v">${p.id}</span></div>
-            <div class="row"><span class="k">Province</span><span class="v">${p.p}</span></div>
-            <div class="row"><span class="k">Pop 2030</span><span class="v">${fmtNumber(p.pop)}</span></div>
-            <div class="row"><span class="k">Category</span><span class="v">${LABELS[p.lbl]}</span></div>
-            <div class="row"><span class="k">Connections (plan)</span><span class="v">${fmtNumber(p.conns)}</span></div>
-            <div class="row"><span class="k">Cost (plan)</span><span class="v">${fmtMoney(p.cost)}</span></div>
-          </div>
-        `).openPopup();
+    pointToLayer: function (f, latlng) {
+      return L.circleMarker(latlng, {
+        radius: clusterRadius(f.properties.lbl),
+        fillColor: COLORS[f.properties.lbl] || "#999",
+        color: COLORS[f.properties.lbl] || "#999",
+        weight: 0,
+        fillOpacity: f.properties.lbl === "remaining" ? 0.4 : 0.85,
+        stroke: false
       });
     },
+    onEachFeature: function (f, layer) {
+      var p = f.properties;
+      layer.on("click", function () {
+        var html =
+          '<div class="cluster-popup">' +
+          '<div class="row"><span class="k">Cluster id</span><span class="v">' + p.id + '</span></div>' +
+          '<div class="row"><span class="k">Province</span><span class="v">' + p.p + '</span></div>' +
+          '<div class="row"><span class="k">Pop 2030</span><span class="v">' + fmtNumber(p.pop) + '</span></div>' +
+          '<div class="row"><span class="k">Category</span><span class="v">' + LABELS[p.lbl] + '</span></div>' +
+          '<div class="row"><span class="k">Connections (plan)</span><span class="v">' + fmtNumber(p.conns) + '</span></div>' +
+          '<div class="row"><span class="k">Cost (plan)</span><span class="v">' + fmtMoney(p.cost) + '</span></div>' +
+          '</div>';
+        layer.bindPopup(html).openPopup();
+      });
+    }
   });
   state.clusterLayer.addTo(state.map);
   applyCatVisibility();
 }
-function clusterRadius(lbl) {
-  return lbl === "extension" ? 4.5 : lbl === "densification" ? 3.5 : lbl === "remaining" ? 1.5 : 2.5;
-}
 
 function applyCatVisibility() {
   if (!state.clusterLayer) return;
-  state.clusterLayer.eachLayer((layer) => {
-    const lbl = layer.feature.properties.lbl;
-    const vis = state.catVisible[lbl];
+  state.clusterLayer.eachLayer(function (layer) {
+    var lbl = layer.feature.properties.lbl;
+    var vis = state.catVisible[lbl];
     layer.setStyle({
       radius: vis ? clusterRadius(lbl) : 0,
-      fillOpacity: vis ? (lbl === "remaining" ? 0.4 : 0.85) : 0,
+      fillOpacity: vis ? (lbl === "remaining" ? 0.4 : 0.85) : 0
     });
   });
 }
@@ -152,17 +178,17 @@ function applyCatVisibility() {
 function buildGridLayer() {
   if (state.gridLayer) state.map.removeLayer(state.gridLayer);
   state.gridLayer = L.geoJSON(state.gridGeoJSON, {
-    style: (f) => {
-      const v = f.properties.VOLTAGE_KV || 0;
-      const status = (f.properties.STATUS || "").toLowerCase();
-      const colour = v >= 220 ? "#dc2626" : v >= 132 ? "#ea580c" : "#9333ea";
-      const dashed = status.includes("construction") || status.includes("planned");
+    style: function (f) {
+      var v = f.properties.VOLTAGE_KV || 0;
+      var status = (f.properties.STATUS || "").toLowerCase();
+      var colour = v >= 220 ? "#dc2626" : v >= 132 ? "#ea580c" : "#9333ea";
+      var dashed = status.indexOf("construction") >= 0 || status.indexOf("planned") >= 0;
       return { color: colour, weight: 1.8, opacity: 0.85, dashArray: dashed ? "4,4" : null };
     },
-    onEachFeature: (f, l) => {
-      const p = f.properties;
-      l.bindTooltip(`${p.FROM_NM} → ${p.TO_NM} (${p.VOLTAGE_KV}kV, ${p.STATUS})`);
-    },
+    onEachFeature: function (f, l) {
+      var p = f.properties;
+      l.bindTooltip(p.FROM_NM + " > " + p.TO_NM + " (" + p.VOLTAGE_KV + "kV, " + p.STATUS + ")");
+    }
   });
   if (state.showGrid) state.gridLayer.addTo(state.map);
 }
@@ -171,140 +197,149 @@ function buildAdminLayer() {
   if (state.adminLayer) state.map.removeLayer(state.adminLayer);
   state.adminLayer = L.geoJSON(state.adminGeoJSON, {
     style: { color: "#475569", weight: 1, fillOpacity: 0.04, fillColor: "#94a3b8" },
-    onEachFeature: (f, l) => { l.bindTooltip(f.properties.province, { sticky: true, direction: "center" }); },
+    onEachFeature: function (f, l) {
+      l.bindTooltip(f.properties.province, { sticky: true, direction: "center" });
+    }
   });
   if (state.showAdmin) state.adminLayer.addTo(state.map);
 }
 
-// =================== HEADLINE + COST STACK ===================
 function renderHeadline() {
-  const h = state.summary.headline[state.scenario];
-  const sc = state.scenario;
-  const cards = [
-    ["Total cost", fmtMoney(h.total_cost_b * 1e9, 2), true],
-    ["Connections", fmtNumber(h.total_conn_m * 1e6), false],
-    ["Access 2030", fmtPct(h.target_pct), false],
+  var h = state.summary.headline[state.scenario];
+  var cards = [
+    ["Total cost",      fmtMoney(h.total_cost_b * 1e9, 2), true],
+    ["Connections",     fmtNumber(h.total_conn_m * 1e6), false],
+    ["Access 2030",     fmtPct(h.target_pct), false],
     ["Grid cost share", fmtPct(h.grid_cost_share_pct), false],
-    ["Densification", fmtMoney(h.densification_cost_m * 1e6, 1), false],
-    ["SHS cost", fmtMoney(h.shs_cost_m * 1e6, 1), false],
+    ["Densification",   fmtMoney(h.densification_cost_m * 1e6, 1), false],
+    ["SHS cost",        fmtMoney(h.shs_cost_m * 1e6, 1), false]
   ];
-  const wrap = $("#headline-cards");
+  var wrap = document.getElementById("headline-cards");
   wrap.innerHTML = "";
-  cards.forEach(([label, value, highlight]) => {
-    const div = document.createElement("div");
-    div.className = "card" + (highlight ? " highlight" : "");
-    div.innerHTML = `<div class="label">${label}</div><div class="value">${value}</div>`;
+  for (var i = 0; i < cards.length; i++) {
+    var c = cards[i];
+    var div = document.createElement("div");
+    div.className = "card" + (c[2] ? " highlight" : "");
+    div.innerHTML = '<div class="label">' + c[0] + '</div><div class="value">' + c[1] + '</div>';
     wrap.appendChild(div);
-  });
+  }
 }
 
-function renderCostStack(target = "#cost-stack", source = null) {
-  const rows = (source || state.costStackAll[state.scenario]).filter((r) => !String(r.row).includes("TOTAL"));
-  const wrap = $(target);
-  wrap.innerHTML = "";
-  const max = Math.max(...rows.map((r) => r.cost_usd_M), 1);
-  const palette = {
-    "Densification (existing-grid expansion)": COLORS.densification,
-    "Extension (new MV/LV grid)": COLORS.extension,
-    "SHS": COLORS.shs,
-    "Programme overhead (staged delivery)": "#94a3b8",
-  };
-  rows.forEach((r) => {
-    const w = Math.max(2, (r.cost_usd_M / max) * 100);
-    const row = document.createElement("div");
-    row.className = "stack-row";
-    row.innerHTML = `
-      <div class="stack-bar" style="width:${w}%; background:${palette[r.row] || "#888"}"></div>
-      <div class="stack-label" title="${r.row}">${shortRowName(r.row)}</div>
-      <div class="stack-value">${fmtMoney(r.cost_usd_M * 1e6, 1)}</div>
-    `;
-    wrap.appendChild(row);
-  });
-}
 function shortRowName(s) {
   return s.replace("Densification (existing-grid expansion)", "Densification")
           .replace("Extension (new MV/LV grid)", "Extension")
           .replace("Programme overhead (staged delivery)", "Programme overhead");
 }
 
+function renderCostStack(target, source) {
+  if (!target) target = "#cost-stack";
+  var rowsAll = source || state.costStackAll[state.scenario];
+  var rows = rowsAll.filter(function (r) { return String(r.row).indexOf("TOTAL") < 0; });
+  var wrap = document.querySelector(target);
+  wrap.innerHTML = "";
+  var max = 1;
+  for (var i = 0; i < rows.length; i++) if (rows[i].cost_usd_M > max) max = rows[i].cost_usd_M;
+  var palette = {
+    "Densification (existing-grid expansion)": COLORS.densification,
+    "Extension (new MV/LV grid)": COLORS.extension,
+    "SHS": COLORS.shs,
+    "Programme overhead (staged delivery)": "#94a3b8"
+  };
+  for (var j = 0; j < rows.length; j++) {
+    var r = rows[j];
+    var w = Math.max(2, (r.cost_usd_M / max) * 100);
+    var row = document.createElement("div");
+    row.className = "stack-row";
+    row.innerHTML =
+      '<div class="stack-bar" style="width:' + w + '%; background:' + (palette[r.row] || "#888") + '"></div>' +
+      '<div class="stack-label" title="' + r.row + '">' + shortRowName(r.row) + '</div>' +
+      '<div class="stack-value">' + fmtMoney(r.cost_usd_M * 1e6, 1) + '</div>';
+    wrap.appendChild(row);
+  }
+}
+
 function renderCostTable() {
-  const rows = state.costStackAll[state.scenario];
-  const tbody = $("#cost-table tbody");
+  var rows = state.costStackAll[state.scenario];
+  var tbody = document.querySelector("#cost-table tbody");
   tbody.innerHTML = "";
-  rows.forEach((r) => {
-    const tr = document.createElement("tr");
-    const isTotal = String(r.row).includes("TOTAL");
-    const dollarPerConn = r.connections > 0 ? (r.cost_usd_M * 1e6) / r.connections : null;
-    tr.innerHTML = `
-      <td style="${isTotal ? 'font-weight:700' : ''}">${r.row}</td>
-      <td>${fmtNumber(r.connections)}</td>
-      <td>${r.cost_usd_M.toFixed(1)}</td>
-      <td>${dollarPerConn ? fmtMoney(dollarPerConn, 0) : "—"}</td>
-    `;
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    var tr = document.createElement("tr");
+    var isTotal = String(r.row).indexOf("TOTAL") >= 0;
+    var dpc = r.connections > 0 ? (r.cost_usd_M * 1e6) / r.connections : null;
+    tr.innerHTML =
+      '<td style="' + (isTotal ? "font-weight:700" : "") + '">' + r.row + '</td>' +
+      '<td>' + fmtNumber(r.connections) + '</td>' +
+      '<td>' + r.cost_usd_M.toFixed(1) + '</td>' +
+      '<td>' + (dpc ? fmtMoney(dpc, 0) : "-") + '</td>';
     tbody.appendChild(tr);
-  });
+  }
 }
 
 function renderProvinceTable() {
-  const rows = state.provincesAll.filter((p) => p.scenario === state.scenario);
-  const tbody = $("#province-table tbody");
+  var rows = state.provincesAll.filter(function (p) { return p.scenario === state.scenario; });
+  var tbody = document.querySelector("#province-table tbody");
   tbody.innerHTML = "";
-  const sorted = rows.slice().sort((a, b) => {
-    const x = a[state.provinceSort.key], y = b[state.provinceSort.key];
+  var sorted = rows.slice().sort(function (a, b) {
+    var x = a[state.provinceSort.key], y = b[state.provinceSort.key];
     if (typeof x === "string") return state.provinceSort.dir * x.localeCompare(y);
     return state.provinceSort.dir * ((x || 0) - (y || 0));
   });
-  sorted.forEach((p) => {
-    const tr = document.createElement("tr");
-    const cls = p.access_2030_pct >= state.summary.headline[state.scenario].target_pct ? "access-met" : "access-short";
-    tr.innerHTML = `
-      <td>${p.Admin1_n}</td>
-      <td>${fmtNumber(p.in_plan_clusters)}</td>
-      <td>${fmtNumber(p.plan_conns)}</td>
-      <td>${(p.plan_cost / 1e6).toFixed(1)}</td>
-      <td>${((p.densif_cost || 0) / 1e6).toFixed(1)}</td>
-      <td>${((p.extension_cost || 0) / 1e6).toFixed(1)}</td>
-      <td>${((p.shs_cost || 0) / 1e6).toFixed(1)}</td>
-      <td class="${cls}">${fmtPct(p.access_2030_pct)}</td>
-    `;
+  var target = state.summary.headline[state.scenario].target_pct;
+  for (var i = 0; i < sorted.length; i++) {
+    var p = sorted[i];
+    var tr = document.createElement("tr");
+    var cls = p.access_2030_pct >= target ? "access-met" : "access-short";
+    tr.innerHTML =
+      '<td>' + p.Admin1_n + '</td>' +
+      '<td>' + fmtNumber(p.in_plan_clusters) + '</td>' +
+      '<td>' + fmtNumber(p.plan_conns) + '</td>' +
+      '<td>' + (p.plan_cost / 1e6).toFixed(1) + '</td>' +
+      '<td>' + ((p.densif_cost || 0) / 1e6).toFixed(1) + '</td>' +
+      '<td>' + ((p.extension_cost || 0) / 1e6).toFixed(1) + '</td>' +
+      '<td>' + ((p.shs_cost || 0) / 1e6).toFixed(1) + '</td>' +
+      '<td class="' + cls + '">' + fmtPct(p.access_2030_pct) + '</td>';
     tbody.appendChild(tr);
-  });
+  }
 }
 
 function renderCompareTable() {
-  const H = state.summary.headline;
-  const rows = [
-    ["Total cost",          "$4.6B",  fmtMoney(H.S53.total_cost_b * 1e9, 2), fmtMoney(H.S60.total_cost_b * 1e9, 2), fmtMoney(H.S70.total_cost_b * 1e9, 2)],
-    ["New connections",     "1.7M",   fmtNumber(H.S53.total_conn_m * 1e6),   fmtNumber(H.S60.total_conn_m * 1e6),   fmtNumber(H.S70.total_conn_m * 1e6)],
-    ["$/connection (avg)",  "~$2,700", "$" + Math.round(H.S53.total_cost_b * 1e9 / (H.S53.total_conn_m * 1e6)).toLocaleString(),
-                                       "$" + Math.round(H.S60.total_cost_b * 1e9 / (H.S60.total_conn_m * 1e6)).toLocaleString(),
-                                       "$" + Math.round(H.S70.total_cost_b * 1e9 / (H.S70.total_conn_m * 1e6)).toLocaleString()],
-    ["Grid cost share",     "not stated", fmtPct(H.S53.grid_cost_share_pct), fmtPct(H.S60.grid_cost_share_pct), fmtPct(H.S70.grid_cost_share_pct)],
-    ["Grid conn share",     "not stated", fmtPct(H.S53.grid_conn_share_pct), fmtPct(H.S60.grid_conn_share_pct), fmtPct(H.S70.grid_conn_share_pct)],
+  var H = state.summary.headline;
+  function cpc(sc) {
+    return "$" + Math.round(H[sc].total_cost_b * 1e9 / (H[sc].total_conn_m * 1e6)).toLocaleString();
+  }
+  var rows = [
+    ["Total cost",         "$4.6B",    fmtMoney(H.S53.total_cost_b * 1e9, 2), fmtMoney(H.S60.total_cost_b * 1e9, 2), fmtMoney(H.S70.total_cost_b * 1e9, 2)],
+    ["New connections",    "1.7M",     fmtNumber(H.S53.total_conn_m * 1e6),   fmtNumber(H.S60.total_conn_m * 1e6),   fmtNumber(H.S70.total_conn_m * 1e6)],
+    ["$/connection (avg)", "~$2,700",  cpc("S53"), cpc("S60"), cpc("S70")],
+    ["Grid cost share",    "n/a",      fmtPct(H.S53.grid_cost_share_pct), fmtPct(H.S60.grid_cost_share_pct), fmtPct(H.S70.grid_cost_share_pct)],
+    ["Grid conn share",    "n/a",      fmtPct(H.S53.grid_conn_share_pct), fmtPct(H.S60.grid_conn_share_pct), fmtPct(H.S70.grid_conn_share_pct)]
   ];
-  const tbody = $("#compare-table tbody");
+  var tbody = document.querySelector("#compare-table tbody");
   tbody.innerHTML = "";
-  rows.forEach((r) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td><td>${r[4]}</td>`;
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    var tr = document.createElement("tr");
+    tr.innerHTML = '<td>' + r[0] + '</td><td>' + r[1] + '</td><td>' + r[2] + '</td><td>' + r[3] + '</td><td>' + r[4] + '</td>';
     tbody.appendChild(tr);
-  });
+  }
 }
 
-// =================== PROVINCE FOCUS ===================
 function initProvincePage() {
   state.pMap = L.map("province-map", { preferCanvas: true, renderer: L.canvas() }).setView([-12.5, 17.5], 6);
   osmP.addTo(state.pMap);
-  const sel = $("#province-select");
+  var sel = document.getElementById("province-select");
   sel.innerHTML = "";
-  const provNames = Array.from(new Set(state.provincesAll.map((p) => p.Admin1_n))).sort();
-  provNames.forEach((name) => {
-    const o = document.createElement("option");
-    o.value = name; o.textContent = name;
+  var names = state.provincesAll.map(function (p) { return p.Admin1_n; });
+  var uniq = names.filter(function (n, i) { return names.indexOf(n) === i; }).sort();
+  for (var i = 0; i < uniq.length; i++) {
+    var o = document.createElement("option");
+    o.value = uniq[i];
+    o.textContent = uniq[i];
     sel.appendChild(o);
-  });
+  }
   sel.value = state.selectedProvince;
-  sel.addEventListener("change", () => {
+  sel.addEventListener("change", function () {
     state.selectedProvince = sel.value;
     renderProvinceView();
   });
@@ -312,47 +347,43 @@ function initProvincePage() {
 }
 
 function renderProvinceView() {
-  const rows = state.provincesAll.filter((p) => p.scenario === state.scenario);
-  const prov = rows.find((p) => p.Admin1_n === state.selectedProvince);
+  var rows = state.provincesAll.filter(function (p) { return p.scenario === state.scenario; });
+  var prov = rows.find(function (p) { return p.Admin1_n === state.selectedProvince; });
   if (!prov) return;
-
-  const wrap = $("#province-cards");
+  var wrap = document.getElementById("province-cards");
   wrap.innerHTML = "";
-  const targetPct = state.summary.headline[state.scenario].target_pct;
-  const cards = [
-    ["Pop 2030", fmtNumber(prov.pop_2030)],
-    ["Already electrified", fmtNumber(prov.elec_2025)],
-    ["Plan connections", fmtNumber(prov.plan_conns)],
-    ["Plan cost", fmtMoney(prov.plan_cost, 1)],
-    ["Access 2030", fmtPct(prov.access_2030_pct), prov.access_2030_pct >= targetPct ? "highlight" : ""],
+  var targetPct = state.summary.headline[state.scenario].target_pct;
+  var cards = [
+    ["Pop 2030", fmtNumber(prov.pop_2030), ""],
+    ["Already electrified", fmtNumber(prov.elec_2025), ""],
+    ["Plan connections", fmtNumber(prov.plan_conns), ""],
+    ["Plan cost", fmtMoney(prov.plan_cost, 1), ""],
+    ["Access 2030", fmtPct(prov.access_2030_pct), prov.access_2030_pct >= targetPct ? "highlight" : ""]
   ];
-  cards.forEach(([l, v, cls]) => {
-    const d = document.createElement("div");
-    d.className = "card" + (cls ? " " + cls : "");
-    d.innerHTML = `<div class="label">${l}</div><div class="value">${v}</div>`;
+  for (var i = 0; i < cards.length; i++) {
+    var c = cards[i];
+    var d = document.createElement("div");
+    d.className = "card" + (c[2] ? " " + c[2] : "");
+    d.innerHTML = '<div class="label">' + c[0] + '</div><div class="value">' + c[1] + '</div>';
     wrap.appendChild(d);
-  });
-
-  // Cluster breakdown
-  const bwrap = $("#province-breakdown");
+  }
+  var bwrap = document.getElementById("province-breakdown");
   bwrap.innerHTML = "";
-  const b = [
+  var b = [
     ["Densification", prov.densification_clusters || 0],
-    ["Extension", prov.extension_clusters || 0],
-    ["SHS", prov.shs_clusters || 0],
+    ["Extension",     prov.extension_clusters || 0],
+    ["SHS",           prov.shs_clusters || 0]
   ];
-  b.forEach(([l, v]) => {
-    const d = document.createElement("div");
-    d.className = "card";
-    d.innerHTML = `<div class="label">${l}</div><div class="value">${fmtNumber(v)}</div>`;
-    bwrap.appendChild(d);
-  });
-
-  // Per-province cost stack
-  const provCostStack = [
+  for (var j = 0; j < b.length; j++) {
+    var d2 = document.createElement("div");
+    d2.className = "card";
+    d2.innerHTML = '<div class="label">' + b[j][0] + '</div><div class="value">' + fmtNumber(b[j][1]) + '</div>';
+    bwrap.appendChild(d2);
+  }
+  var provCostStack = [
     { row: "Densification (existing-grid expansion)", connections: prov.densification_clusters, cost_usd_M: (prov.densif_cost || 0) / 1e6 },
-    { row: "Extension (new MV/LV grid)",              connections: prov.extension_clusters,    cost_usd_M: (prov.extension_cost || 0) / 1e6 },
-    { row: "SHS",                                     connections: prov.shs_clusters,          cost_usd_M: (prov.shs_cost || 0) / 1e6 },
+    { row: "Extension (new MV/LV grid)",              connections: prov.extension_clusters,     cost_usd_M: (prov.extension_cost || 0) / 1e6 },
+    { row: "SHS",                                     connections: prov.shs_clusters,           cost_usd_M: (prov.shs_cost || 0) / 1e6 }
   ];
   renderCostStack("#province-cost-stack", provCostStack);
   renderProvinceMap(prov);
@@ -361,167 +392,179 @@ function renderProvinceView() {
 function renderProvinceMap(prov) {
   if (state.pClusterLayer) state.pMap.removeLayer(state.pClusterLayer);
   if (state.pAdminLayer)   state.pMap.removeLayer(state.pAdminLayer);
-  const pgon = state.adminGeoJSON.features.find((f) => f.properties.province === prov.Admin1_n);
+  var pgon = state.adminGeoJSON.features.find(function (f) { return f.properties.province === prov.Admin1_n; });
   if (pgon) {
     state.pAdminLayer = L.geoJSON(pgon, {
-      style: { color: "#1f3a8a", weight: 2, fillColor: "#94c5fb", fillOpacity: 0.05 },
+      style: { color: "#1f3a8a", weight: 2, fillColor: "#94c5fb", fillOpacity: 0.05 }
     }).addTo(state.pMap);
     state.pMap.fitBounds(state.pAdminLayer.getBounds(), { padding: [20, 20] });
   }
-  const gj = state.clusters[state.scenario];
+  var gj = state.clusters[state.scenario];
   if (!gj) return;
-  const feats = gj.features.filter((f) => f.properties.p === prov.Admin1_n);
+  var feats = gj.features.filter(function (f) { return f.properties.p === prov.Admin1_n; });
   state.pClusterLayer = L.geoJSON({ type: "FeatureCollection", features: feats }, {
-    pointToLayer: (f, latlng) => L.circleMarker(latlng, {
-      radius: f.properties.lbl === "extension" ? 6 : f.properties.lbl === "densification" ? 4.5 : 3,
-      fillColor: COLORS[f.properties.lbl] || "#999",
-      color: COLORS[f.properties.lbl] || "#999",
-      weight: 0,
-      fillOpacity: state.pCatVisible[f.properties.lbl] ? 0.85 : 0,
-      stroke: false,
-    }),
+    pointToLayer: function (f, latlng) {
+      return L.circleMarker(latlng, {
+        radius: f.properties.lbl === "extension" ? 6 : f.properties.lbl === "densification" ? 4.5 : 3,
+        fillColor: COLORS[f.properties.lbl] || "#999",
+        color: COLORS[f.properties.lbl] || "#999",
+        weight: 0,
+        fillOpacity: state.pCatVisible[f.properties.lbl] ? 0.85 : 0,
+        stroke: false
+      });
+    }
   }).addTo(state.pMap);
 }
 
-// =================== CRITIQUE ===================
 function renderCritique() {
-  const tbody = $("#critique-table tbody");
+  var tbody = document.querySelector("#critique-table tbody");
   tbody.innerHTML = "";
-  state.critique.forEach((r) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${r.weakness}</td><td>${r.compact_value}</td><td>${r.reconciled_value}</td><td>${r.source_basis}</td>`;
+  for (var i = 0; i < state.critique.length; i++) {
+    var r = state.critique[i];
+    var tr = document.createElement("tr");
+    tr.innerHTML =
+      '<td>' + r.weakness + '</td>' +
+      '<td>' + r.compact_value + '</td>' +
+      '<td>' + r.reconciled_value + '</td>' +
+      '<td>' + r.source_basis + '</td>';
     tbody.appendChild(tr);
-  });
+  }
 }
 
-// =================== FOOTER ===================
 function renderFooter() {
-  $("#footer-data-version").textContent = state.meta.data_version;
-  $("#footer-build-date").textContent   = state.meta.build_date;
-  $("#footer-timestamp").textContent    = state.meta.run_timestamp.split("T")[0];
-  $("#footer-src").textContent          = state.meta.src_file;
+  document.getElementById("footer-data-version").textContent = state.meta.data_version;
+  document.getElementById("footer-build-date").textContent   = state.meta.build_date;
+  document.getElementById("footer-timestamp").textContent    = state.meta.run_timestamp.split("T")[0];
+  document.getElementById("footer-src").textContent          = state.meta.src_file;
 }
 
-// =================== SCENARIO SWITCHING ===================
-async function setScenario(sc, pushURL = true) {
+async function setScenario(sc, pushURL) {
+  if (pushURL == null) pushURL = true;
   if (sc === state.scenario && state.clusters[sc]) return;
   state.scenario = sc;
-  $$(".scenario-switch button").forEach((b) => {
-    const on = b.dataset.sc === sc;
-    b.classList.toggle("active", on);
-    b.setAttribute("aria-selected", on ? "true" : "false");
-  });
-
-  // Lazy-load this scenario's cluster file if not already in memory
+  var btns = qsela(".scenario-switch button");
+  for (var i = 0; i < btns.length; i++) {
+    var on = btns[i].dataset.sc === sc;
+    btns[i].classList.toggle("active", on);
+    btns[i].setAttribute("aria-selected", on ? "true" : "false");
+  }
   if (!state.clusters[sc]) {
-    setLoading(`Loading ${sc} clusters…`);
-    state.clusters[sc] = await loadJSON(`data/clusters_${sc}.geojson`);
+    state.clusters[sc] = await loadStep(sc + " clusters (~7 MB)", "data/clusters_" + sc + ".geojson");
     setLoading(null);
   }
-
-  // Re-render everything scenario-dependent
   renderHeadline();
   renderCostStack();
   renderCostTable();
   renderProvinceTable();
   buildClusterLayer();
   if (state.page === "province") renderProvinceView();
-
   if (pushURL) {
-    const u = new URL(location.href);
+    var u = new URL(location.href);
     u.searchParams.set("scenario", sc);
     history.replaceState({}, "", u);
   }
 }
 
-// =================== WIRING ===================
 function wireControls() {
-  $("#sidebar-toggle").addEventListener("click", () => {
-    $("#sidebar").classList.toggle("closed");
-    setTimeout(() => state.map.invalidateSize(), 250);
+  document.getElementById("sidebar-toggle").addEventListener("click", function () {
+    document.getElementById("sidebar").classList.toggle("closed");
+    setTimeout(function () { state.map.invalidateSize(); }, 250);
   });
-  $("#province-sidebar-toggle").addEventListener("click", () => {
-    $("#province-sidebar").classList.toggle("closed");
-    setTimeout(() => state.pMap && state.pMap.invalidateSize(), 250);
+  document.getElementById("province-sidebar-toggle").addEventListener("click", function () {
+    document.getElementById("province-sidebar").classList.toggle("closed");
+    setTimeout(function () { if (state.pMap) state.pMap.invalidateSize(); }, 250);
   });
-  $("#bottom-toggle").addEventListener("click", () => {
-    $("#bottom-panel").classList.toggle("closed");
-    setTimeout(() => state.map.invalidateSize(), 250);
+  document.getElementById("bottom-toggle").addEventListener("click", function () {
+    document.getElementById("bottom-panel").classList.toggle("closed");
+    setTimeout(function () { state.map.invalidateSize(); }, 250);
   });
-  $$(".page-tab").forEach((b) => b.addEventListener("click", () => switchPage(b.dataset.page)));
-  $$(".bottom-tabs button").forEach((b) => {
-    b.addEventListener("click", () => {
-      $$(".bottom-tabs button").forEach((x) => x.classList.toggle("active", x === b));
-      $$(".tab-pane").forEach((p) => p.classList.toggle("hidden", p.dataset.pane !== b.dataset.tab));
+  var pageTabs = qsela(".page-tab");
+  for (var i = 0; i < pageTabs.length; i++) (function (b) {
+    b.addEventListener("click", function () { switchPage(b.dataset.page); });
+  })(pageTabs[i]);
+  var bottomBtns = qsela(".bottom-tabs button");
+  for (var k = 0; k < bottomBtns.length; k++) (function (b) {
+    b.addEventListener("click", function () {
+      for (var j = 0; j < bottomBtns.length; j++) bottomBtns[j].classList.toggle("active", bottomBtns[j] === b);
+      var panes = qsela(".tab-pane");
+      for (var n = 0; n < panes.length; n++) panes[n].classList.toggle("hidden", panes[n].dataset.pane !== b.dataset.tab);
     });
-  });
-  $("#basemap-select").addEventListener("change", (e) => setBasemap(e.target.value));
-  $$(".cat-toggle").forEach((cb) => cb.addEventListener("change", () => {
-    state.catVisible[cb.dataset.cat] = cb.checked;
-    applyCatVisibility();
-  }));
-  $$(".pcat-toggle").forEach((cb) => cb.addEventListener("change", () => {
-    state.pCatVisible[cb.dataset.cat] = cb.checked;
-    const rows = state.provincesAll.filter((p) => p.scenario === state.scenario);
-    const prov = rows.find((p) => p.Admin1_n === state.selectedProvince);
-    if (prov) renderProvinceMap(prov);
-  }));
-  $("#lyr-grid").addEventListener("change", (e) => {
+  })(bottomBtns[k]);
+  document.getElementById("basemap-select").addEventListener("change", function (e) { setBasemap(e.target.value); });
+  var cats = qsela(".cat-toggle");
+  for (var c1 = 0; c1 < cats.length; c1++) (function (cb) {
+    cb.addEventListener("change", function () {
+      state.catVisible[cb.dataset.cat] = cb.checked;
+      applyCatVisibility();
+    });
+  })(cats[c1]);
+  var pcats = qsela(".pcat-toggle");
+  for (var c2 = 0; c2 < pcats.length; c2++) (function (cb) {
+    cb.addEventListener("change", function () {
+      state.pCatVisible[cb.dataset.cat] = cb.checked;
+      var rows = state.provincesAll.filter(function (p) { return p.scenario === state.scenario; });
+      var prov = rows.find(function (p) { return p.Admin1_n === state.selectedProvince; });
+      if (prov) renderProvinceMap(prov);
+    });
+  })(pcats[c2]);
+  document.getElementById("lyr-grid").addEventListener("change", function (e) {
     state.showGrid = e.target.checked;
     if (state.showGrid) state.gridLayer.addTo(state.map); else state.map.removeLayer(state.gridLayer);
   });
-  $("#lyr-admin").addEventListener("change", (e) => {
+  document.getElementById("lyr-admin").addEventListener("change", function (e) {
     state.showAdmin = e.target.checked;
     if (state.showAdmin) state.adminLayer.addTo(state.map); else state.map.removeLayer(state.adminLayer);
   });
-  $$("#province-table thead th").forEach((th) => {
-    th.addEventListener("click", () => {
-      const k = th.dataset.sort; if (!k) return;
-      state.provinceSort.dir = state.provinceSort.key === k ? -state.provinceSort.dir : -1;
-      state.provinceSort.key = k;
+  var ths = qsela("#province-table thead th");
+  for (var t = 0; t < ths.length; t++) (function (th) {
+    th.addEventListener("click", function () {
+      var key = th.dataset.sort; if (!key) return;
+      state.provinceSort.dir = state.provinceSort.key === key ? -state.provinceSort.dir : -1;
+      state.provinceSort.key = key;
       renderProvinceTable();
     });
-  });
-  $$(".scenario-switch button").forEach((b) => {
-    b.addEventListener("click", () => setScenario(b.dataset.sc));
-  });
+  })(ths[t]);
+  var scBtns = qsela(".scenario-switch button");
+  for (var s2 = 0; s2 < scBtns.length; s2++) (function (b) {
+    b.addEventListener("click", function () { setScenario(b.dataset.sc); });
+  })(scBtns[s2]);
 }
 
 function switchPage(name) {
   state.page = name;
-  $$(".page-tab").forEach((b) => b.classList.toggle("active", b.dataset.page === name));
-  $$(".page").forEach((p) => p.classList.toggle("active", p.id === `page-${name}`));
-  if (name === "overview") setTimeout(() => state.map.invalidateSize(), 100);
+  var pageTabs = qsela(".page-tab");
+  for (var i = 0; i < pageTabs.length; i++) pageTabs[i].classList.toggle("active", pageTabs[i].dataset.page === name);
+  var pages = qsela(".page");
+  for (var j = 0; j < pages.length; j++) pages[j].classList.toggle("active", pages[j].id === "page-" + name);
+  if (name === "overview") setTimeout(function () { state.map.invalidateSize(); }, 100);
   else if (name === "province") {
     if (!state.pMap) initProvincePage();
-    else setTimeout(() => state.pMap.invalidateSize(), 100);
+    else setTimeout(function () { state.pMap.invalidateSize(); }, 100);
   }
 }
 
-// =================== INIT ===================
 async function init() {
-  initOverviewMap();
-  setLoading("Loading plan data…");
+  console.log("Angola Electrification dashboard " + BUILD_TAG);
+  try { initOverviewMap(); }
+  catch (e) { showError("Map init failed: " + e.message); throw e; }
 
-  // URL state — scenario from query string
-  const urlSc = new URLSearchParams(location.search).get("scenario");
-  if (urlSc && SCENARIOS.includes(urlSc)) state.scenario = urlSc;
+  var urlSc = new URLSearchParams(location.search).get("scenario");
+  if (urlSc && SCENARIOS.indexOf(urlSc) >= 0) state.scenario = urlSc;
 
-  [state.costStackAll, state.provincesAll, state.adminGeoJSON, state.gridGeoJSON,
-   state.summary, state.meta, state.critique] = await Promise.all([
-    loadJSON("data/cost_stack.json"),
-    loadJSON("data/provinces.json"),
-    loadJSON("data/admin1.geojson"),
-    loadJSON("data/existing_grid.geojson"),
-    loadJSON("data/summary.json"),
-    loadJSON("data/meta.json"),
-    loadJSON("data/critique.json"),
-  ]);
+  state.summary      = await loadStep("summary",     "data/summary.json");
+  state.costStackAll = await loadStep("cost_stack",  "data/cost_stack.json");
+  state.provincesAll = await loadStep("provinces",   "data/provinces.json");
+  state.meta         = await loadStep("meta",        "data/meta.json");
+  state.critique     = await loadStep("critique",    "data/critique.json");
+  state.adminGeoJSON = await loadStep("admin1",      "data/admin1.geojson");
+  state.gridGeoJSON  = await loadStep("grid",        "data/existing_grid.geojson");
 
-  $$(".scenario-switch button").forEach((b) => {
-    b.classList.toggle("active", b.dataset.sc === state.scenario);
-  });
+  var scBtns = qsela(".scenario-switch button");
+  for (var i = 0; i < scBtns.length; i++) {
+    scBtns[i].classList.toggle("active", scBtns[i].dataset.sc === state.scenario);
+  }
 
+  setLoading(BUILD_TAG + " | rendering panels...");
   renderHeadline();
   renderCostStack();
   renderCostTable();
@@ -532,10 +575,15 @@ async function init() {
   buildAdminLayer();
   buildGridLayer();
 
-  setLoading(`Loading ${state.scenario} clusters (this can take a moment)…`);
-  state.clusters[state.scenario] = await loadJSON(`data/clusters_${state.scenario}.geojson`);
+  state.clusters[state.scenario] = await loadStep(state.scenario + " clusters (~7 MB)", "data/clusters_" + state.scenario + ".geojson");
+  setLoading(BUILD_TAG + " | rendering clusters...");
   buildClusterLayer();
   wireControls();
   setLoading(null);
+  console.log("dashboard ready");
 }
-init().catch((err) => { console.error(err); setLoading("Error: " + err.message); });
+
+init().catch(function (err) {
+  console.error(err);
+  showError(err && err.message ? err.message : String(err));
+});
