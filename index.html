@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Angola Electrification — Compact Response</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-title">Angola Electrification</div>
+    <div class="brand-sub">World Bank / IFC response to MINEA Energy Compact, April 2026</div>
+  </div>
+  <div class="scenario-toggle" role="tablist" aria-label="Access target scenario">
+    <button data-sc="S53" role="tab" aria-selected="false">53%</button>
+    <button data-sc="S60" class="active" role="tab" aria-selected="true">60%</button>
+    <button data-sc="S70" role="tab" aria-selected="false">70%</button>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button data-view="overview" class="active">Overview</button>
+  <button data-view="map">Provincial map</button>
+  <button data-view="modality">Modality breakdown</button>
+  <button data-view="staged">Staged delivery</button>
+  <button data-view="critique">Compact response</button>
+</nav>
+
+<main>
+  <!-- OVERVIEW -->
+  <section id="view-overview" class="view active">
+    <div class="cards">
+      <div class="card" data-sc-card="S53">
+        <div class="card-pct">53%</div>
+        <div class="card-label">Compact target</div>
+        <div class="card-stat"><strong id="ov53-total"></strong> total</div>
+        <div class="card-stat"><span id="ov53-conn"></span> new connections</div>
+        <div class="card-stat"><span id="ov53-grid"></span> grid share</div>
+        <div class="card-stat card-stat-muted"><span id="ov53-shs"></span> SHS share</div>
+      </div>
+      <div class="card highlight" data-sc-card="S60">
+        <div class="card-pct">60%</div>
+        <div class="card-label">Minimum credible floor</div>
+        <div class="card-stat"><strong id="ov60-total"></strong> total</div>
+        <div class="card-stat"><span id="ov60-conn"></span> new connections</div>
+        <div class="card-stat"><span id="ov60-grid"></span> grid share</div>
+        <div class="card-stat card-stat-muted"><span id="ov60-shs"></span> SHS share</div>
+      </div>
+      <div class="card highlight" data-sc-card="S70">
+        <div class="card-pct">70%</div>
+        <div class="card-label">Upside under staged approach</div>
+        <div class="card-stat"><strong id="ov70-total"></strong> total</div>
+        <div class="card-stat"><span id="ov70-conn"></span> new connections</div>
+        <div class="card-stat"><span id="ov70-grid"></span> grid share</div>
+        <div class="card-stat card-stat-muted"><span id="ov70-shs"></span> SHS share</div>
+      </div>
+    </div>
+
+    <div class="compare-box">
+      <h2>Compact comparison</h2>
+      <p>The MINEA Compact claims <strong>$4.6B</strong> for 1.7M connections to reach 53% access.
+      This analysis finds reaching 70% requires <strong id="cmp-70-total"></strong> across 2.31M connections.
+      The gap reflects a unit-cost reconciliation: Compact's implied $2,700 per connection vs the
+      $1,437 blended ENDE LOTES rate (after 11% standard add-ons), plus modality transparency.</p>
+
+      <table class="comparison">
+        <thead>
+          <tr><th>Quantity</th><th>Compact (53%)</th><th>Our 53%</th><th>Our 60%</th><th>Our 70%</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Total cost</td><td>$4.6B</td><td id="t-53-cost"></td><td id="t-60-cost"></td><td id="t-70-cost"></td></tr>
+          <tr><td>New connections</td><td>1.7M</td><td id="t-53-conn"></td><td id="t-60-conn"></td><td id="t-70-conn"></td></tr>
+          <tr><td>$ per connection (avg)</td><td>~$2,700</td><td id="t-53-cpc"></td><td id="t-60-cpc"></td><td id="t-70-cpc"></td></tr>
+          <tr><td>Grid share (connections)</td><td>not stated</td><td id="t-53-gs"></td><td id="t-60-gs"></td><td id="t-70-gs"></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- MAP -->
+  <section id="view-map" class="view">
+    <div class="map-controls">
+      <label>
+        <input type="radio" name="map-mode" value="cost" checked>
+        Color by total cost
+      </label>
+      <label>
+        <input type="radio" name="map-mode" value="grid_share">
+        Color by grid share (%)
+      </label>
+      <label class="ml-auto">
+        <input type="checkbox" id="show-clusters">
+        Show cluster points (newly selected only)
+      </label>
+    </div>
+    <div id="map"></div>
+    <div id="prov-drawer" class="prov-drawer hidden">
+      <button class="close-btn" aria-label="Close">×</button>
+      <h3 id="drawer-title"></h3>
+      <table id="drawer-table"></table>
+    </div>
+  </section>
+
+  <!-- MODALITY -->
+  <section id="view-modality" class="view">
+    <h2>Modality breakdown</h2>
+    <p>Grid blended ENDE LOTES rate ($1,437 per connection) vs SHS Tier 1 mid ($282 per connection).
+    Mini-grid clusters are reclassified to SHS per the plan's no-MG rule.</p>
+    <div class="chart-grid">
+      <div>
+        <h3>Connections (M households)</h3>
+        <canvas id="chart-conn"></canvas>
+      </div>
+      <div>
+        <h3>Cost (USD M)</h3>
+        <canvas id="chart-cost"></canvas>
+      </div>
+    </div>
+    <table class="modality-table">
+      <thead>
+        <tr><th>Scenario</th><th>Modality</th><th>Unit cost</th><th>Connections</th><th>Total cost</th></tr>
+      </thead>
+      <tbody id="mod-tbody"></tbody>
+    </table>
+  </section>
+
+  <!-- STAGED -->
+  <section id="view-staged" class="view">
+    <h2>Staged delivery program (60% and 70% only)</h2>
+    <p>Four parallel tracks layered on top of infrastructure costs. Midpoints used in headline numbers;
+    full range shown below. These are order-of-magnitude planning ranges, not engineered estimates.</p>
+    <div id="staged-timeline"></div>
+  </section>
+
+  <!-- CRITIQUE -->
+  <section id="view-critique" class="view">
+    <h2>Compact response: reconciled critique</h2>
+    <p>Direct response to each weakness in the April 2026 Compact revision.</p>
+    <table class="critique-table" id="critique-table"></table>
+  </section>
+</main>
+
+<footer class="footbar">
+  <span>Data version <span id="footer-data-version"></span> · build <span id="footer-build-date"></span> · run <span id="footer-timestamp"></span></span>
+  <span>Source: OnSSET / GEP V.3 Scenario C (<span id="footer-src"></span>)</span>
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

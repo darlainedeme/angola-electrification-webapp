@@ -1,0 +1,107 @@
+{
+  "headline": {
+    "S53": {
+      "target_pct": 53.0,
+      "new_connections_m": 0.788,
+      "grid_connections_m": 0.787,
+      "shs_connections_m": 0.001,
+      "grid_cost_usd_m": 1130.5,
+      "shs_cost_usd_m": 0.4,
+      "infra_cost_usd_b": 1.131,
+      "staged_low_usd_m": 0.0,
+      "staged_mid_usd_m": 0.0,
+      "staged_high_usd_m": 0.0,
+      "total_cost_usd_b": 1.131,
+      "share_grid_hh_pct": 99.8,
+      "share_grid_cost_pct": 100.0
+    },
+    "S60": {
+      "target_pct": 60.0,
+      "new_connections_m": 1.431,
+      "grid_connections_m": 0.909,
+      "shs_connections_m": 0.522,
+      "grid_cost_usd_m": 1306.3,
+      "shs_cost_usd_m": 147.3,
+      "infra_cost_usd_b": 1.454,
+      "staged_low_usd_m": 270.0,
+      "staged_mid_usd_m": 330.0,
+      "staged_high_usd_m": 390.0,
+      "total_cost_usd_b": 1.784,
+      "share_grid_hh_pct": 63.5,
+      "share_grid_cost_pct": 89.9
+    },
+    "S70": {
+      "target_pct": 70.0,
+      "new_connections_m": 2.312,
+      "grid_connections_m": 0.986,
+      "shs_connections_m": 1.326,
+      "grid_cost_usd_m": 1416.5,
+      "shs_cost_usd_m": 373.9,
+      "infra_cost_usd_b": 1.79,
+      "staged_low_usd_m": 270.0,
+      "staged_mid_usd_m": 330.0,
+      "staged_high_usd_m": 390.0,
+      "total_cost_usd_b": 2.12,
+      "share_grid_hh_pct": 42.6,
+      "share_grid_cost_pct": 79.1
+    }
+  },
+  "modality": {
+    "S53": [
+      {
+        "modality": "Grid (blended ENDE LOTES)",
+        "connections": 786708.0,
+        "unit_cost_usd": 1437,
+        "total_cost_usd_m": 1130.5,
+        "source": "ENDE LOTES implementation program, 17 lots post-11% add-ons (Section 2)"
+      },
+      {
+        "modality": "SHS (OnSSET Tier 1 mid)",
+        "connections": 1479.0,
+        "unit_cost_usd": 282,
+        "total_cost_usd_m": 0.4,
+        "source": "OnSSET Tier 1 mid case (Section 2)"
+      }
+    ],
+    "S60": [
+      {
+        "modality": "Grid (blended ENDE LOTES)",
+        "connections": 909038.0,
+        "unit_cost_usd": 1437,
+        "total_cost_usd_m": 1306.3,
+        "source": "ENDE LOTES implementation program, 17 lots post-11% add-ons (Section 2)"
+      },
+      {
+        "modality": "SHS (OnSSET Tier 1 mid)",
+        "connections": 522334.0,
+        "unit_cost_usd": 282,
+        "total_cost_usd_m": 147.3,
+        "source": "OnSSET Tier 1 mid case (Section 2)"
+      }
+    ],
+    "S70": [
+      {
+        "modality": "Grid (blended ENDE LOTES)",
+        "connections": 985759.0,
+        "unit_cost_usd": 1437,
+        "total_cost_usd_m": 1416.5,
+        "source": "ENDE LOTES implementation program, 17 lots post-11% add-ons (Section 2)"
+      },
+      {
+        "modality": "SHS (OnSSET Tier 1 mid)",
+        "connections": 1325876.0,
+        "unit_cost_usd": 282,
+        "total_cost_usd_m": 373.9,
+        "source": "OnSSET Tier 1 mid case (Section 2)"
+      }
+    ]
+  },
+  "constants": {
+    "baseline_2025_pct": 0.51,
+    "hh_size": 5.2,
+    "cost_grid_per_conn": 1437,
+    "cost_shs_per_conn": 282,
+    "pop2025_m": 38.26,
+    "pop2030_m": 44.71
+  }
+}

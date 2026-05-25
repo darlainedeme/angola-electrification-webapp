@@ -1,0 +1,74 @@
+[
+ {
+  "scenario": "S60",
+  "stage": "1. Loss reduction & metering",
+  "years": "2026-2027",
+  "capex_low_m": 180,
+  "capex_mid_m": 200.0,
+  "capex_high_m": 220,
+  "milestone": "Smart meter rollout; 95% collection; 10% commercial losses"
+ },
+ {
+  "scenario": "S60",
+  "stage": "2. Tariff reform support",
+  "years": "2026-2028",
+  "capex_low_m": 30,
+  "capex_mid_m": 40.0,
+  "capex_high_m": 50,
+  "milestone": "IRSEA capacity; annual tariff adjustments operational"
+ },
+ {
+  "scenario": "S60",
+  "stage": "3. Subsidy targeting",
+  "years": "2027-2029",
+  "capex_low_m": 40,
+  "capex_mid_m": 60.0,
+  "capex_high_m": 80,
+  "milestone": "Single Social Register linkage; lifeline-tariff administration"
+ },
+ {
+  "scenario": "S60",
+  "stage": "4. Private sector entry",
+  "years": "2027-2030",
+  "capex_low_m": 20,
+  "capex_mid_m": 30.0,
+  "capex_high_m": 40,
+  "milestone": "PPA standardization; concession structuring"
+ },
+ {
+  "scenario": "S70",
+  "stage": "1. Loss reduction & metering",
+  "years": "2026-2027",
+  "capex_low_m": 180,
+  "capex_mid_m": 200.0,
+  "capex_high_m": 220,
+  "milestone": "Smart meter rollout; 95% collection; 10% commercial losses"
+ },
+ {
+  "scenario": "S70",
+  "stage": "2. Tariff reform support",
+  "years": "2026-2028",
+  "capex_low_m": 30,
+  "capex_mid_m": 40.0,
+  "capex_high_m": 50,
+  "milestone": "IRSEA capacity; annual tariff adjustments operational"
+ },
+ {
+  "scenario": "S70",
+  "stage": "3. Subsidy targeting",
+  "years": "2027-2029",
+  "capex_low_m": 40,
+  "capex_mid_m": 60.0,
+  "capex_high_m": 80,
+  "milestone": "Single Social Register linkage; lifeline-tariff administration"
+ },
+ {
+  "scenario": "S70",
+  "stage": "4. Private sector entry",
+  "years": "2027-2030",
+  "capex_low_m": 20,
+  "capex_mid_m": 30.0,
+  "capex_high_m": 40,
+  "milestone": "PPA standardization; concession structuring"
+ }
+]
